@@ -10,7 +10,7 @@ chrome.tabs.onActivated.addListener(function(activeInfo){
 });
 
 chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
-    if (!changeInfo.favIconUrl || favIconUrlPerTabId[tabId] === changeInfo.favIconUrl) {
+    if (!changeInfo.favIconUrl) {
         return;
     }
 
@@ -20,9 +20,23 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
     }
 
     // Chrome sets the favIcon to this default sometimes when it shouldn't
-    if (changeInfo.favIconUrl === 'https://www.google.com/favicon.ico') {
+    if (changeInfo.favIconUrl === 'https://www.google.com/favicon.ico' && (!tab.url || !tab.url.match(/.*\.google\./))) {
         return;
     }
+
+    chrome.tabs.executeScript(tab.id, {
+        code: '' +
+            // Ensure a `link[rel~=icon]` exists in the head
+            'if (!document.querySelector("link[rel~=icon]")) {' +
+                'document.head.insertAdjacentHTML(\'beforeend\', \'<link rel="icon">\');' +
+            '}' +
+
+            // Save the original favIconUrl in the tab in case the extension is restarted and loses its cache
+            // But don't save it if it's a data URL because it may be us from before if the extension needs to restart
+            (changeInfo.favIconUrl.substr(0, 5) === 'data:' ? '' :
+            'document.querySelector("link[rel~=icon]").setAttribute("data-saturated-original", "' + changeInfo.favIconUrl + '");') +
+        ''
+    }, function(result){});
 
     // Don't ever save the original icon if it's a data URL
     if (changeInfo.favIconUrl.substr(0, 5) === 'data:') {
@@ -30,16 +44,6 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
     }
 
     favIconUrlPerTabId[tabId] = changeInfo.favIconUrl;
-
-    // Save the original favIconUrl in the tab in case the extension gets restarted
-    chrome.tabs.executeScript(tab.id, {
-        code: '' +
-            'if (!document.querySelector("link[rel~=icon]")) {' +
-                'document.head.insertAdjacentHTML(\'beforeend\', \'<link rel="icon" href="' + changeInfo.favIconUrl + '">\');' +
-            '}' +
-            'document.querySelector("link[rel~=icon]").setAttribute("data-saturated-original", "' + changeInfo.favIconUrl + '")' +
-        ''
-    }, function(result){});
 
     updateTabs();
 });
@@ -62,7 +66,8 @@ var setTabFavIconByURL = function(tab, url) {
     chrome.tabs.executeScript(tab.id, {
         code: '' +
             'if (document.querySelector("link[rel~=icon]")) {' +
-                'document.querySelector("link[rel~=icon]").href = "' + url + '";' +
+                // If there are more than one, apply to all of them
+                'Array.prototype.slice.call(document.querySelectorAll("link[rel~=icon]")).forEach(function(l){ l.href = "' + url + '"; });' +
             '}' +
         ''
     }, function(result){});
@@ -102,27 +107,21 @@ var desaturateTabFavIcon = function(tab) {
 };
 
 var getSaturatedDataURL = function(tab, callback) {
-    if (favIconUrlPerTabId[tab.id]) {
-        callback(favIconUrlPerTabId[tab.id]);
-        return;
-    }
-
     if (saturatedFavIconCache[tab.favIconUrl]) {
         callback(saturatedFavIconCache[tab.favIconUrl]);
         return;
     }
 
+    // Pull the original favIconUrl out the tab if the extension is restarted and loses its cache
     chrome.tabs.executeScript(tab.id, {
-        code: 'document.querySelector("link[rel~=icon]").getAttribute("data-saturated-original")'
+        code: '' +
+            'if (document.querySelector("link[data-saturated-original]")) {' +
+                'document.querySelector("link[data-saturated-original]").getAttribute("data-saturated-original")' +
+            '} else { "" }' +
+        ''
     }, function(resultsArray) {
         if (resultsArray && resultsArray.length) {
-            favIconUrlPerTabId[tabId] = resultsArray[0];
             callback(resultsArray[0]);
-            return;
-        }
-
-        if (favIconUrlPerTabId[tab.id]) {
-            callback(favIconUrlPerTabId[tab.id]);
             return;
         }
 
@@ -143,7 +142,7 @@ var getDesaturatedDataURL = function(url, callback) {
 
     var image = new Image();
 
-    image.onload = function(){
+    image.onload = function() {
         var canvas = document.createElement('canvas');
 
         canvas.width = image.width;
@@ -171,8 +170,11 @@ var getDesaturatedDataURL = function(url, callback) {
         desaturatedFavIconCache[url] = dataURL;
         desaturatedFavIconCache[dataURL] = dataURL;
 
-        saturatedFavIconCache[url] = url;
-        saturatedFavIconCache[dataURL] = url;
+        // If these are the same, something bad has happened and we could accidentally save the desaturated version here instead
+        if (url !== dataURL) {
+            saturatedFavIconCache[url] = url;
+            saturatedFavIconCache[dataURL] = url;
+        }
 
         callback(dataURL);
     };
