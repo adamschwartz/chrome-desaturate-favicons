@@ -14,12 +14,12 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
         return;
     }
 
-    // We've seen this tab before and its favicon is the desaturated one we created
+    // We've seen this tab before and its favIcon is the desaturated one we created
     if (favIconUrlPerTabId[tabId] && desaturatedFavIconCache[changeInfo.favIconUrl]) {
         return;
     }
 
-    // Chrome sets the favicon to this default sometimes when it shouldn't
+    // Chrome sets the favIcon to this default sometimes when it shouldn't
     if (changeInfo.favIconUrl === 'https://www.google.com/favicon.ico') {
         return;
     }
@@ -58,7 +58,7 @@ var updateTabs = function() {
     });
 };
 
-var setTabFaviconByURL = function(tab, url) {
+var setTabFavIconByURL = function(tab, url) {
     chrome.tabs.executeScript(tab.id, {
         code: '' +
             'if (document.querySelector("link[rel~=icon]")) {' +
@@ -87,7 +87,7 @@ var saturateTabFavIcon = function(tab) {
     }
 
     getSaturatedDataURL(tab, function(url){
-        setTabFaviconByURL(tab, url);
+        setTabFavIconByURL(tab, url);
     });
 };
 
@@ -97,7 +97,7 @@ var desaturateTabFavIcon = function(tab) {
     }
 
     getDesaturatedDataURL(tab.favIconUrl, function(url){
-        setTabFaviconByURL(tab, url);
+        setTabFavIconByURL(tab, url);
     });
 };
 
