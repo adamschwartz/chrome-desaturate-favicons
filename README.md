@@ -1,4 +1,4 @@
-![](https://raw.github.com/adamschwartz/chrome-desaturate-favicons/master/unpacked-extension/icons/icon48.png)
+![](https://raw.githubusercontent.com/adamschwartz/chrome-desaturate-favicons/master/store-icon.png)
 
 ### Local Installation
 
