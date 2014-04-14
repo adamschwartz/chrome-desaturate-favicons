@@ -1,11 +1,13 @@
-var activeTabId;
 var favIconUrlPerTabId = {};
 
 var desaturatedFavIconCache = {};
 var saturatedFavIconCache = {};
 
-chrome.tabs.onActivated.addListener(function(activeInfo){
-    activeTabId = activeInfo.tabId;
+chrome.runtime.onInstalled.addListener(function(details){
+    updateTabs();
+});
+
+chrome.tabs.onActivated.addListener(function(activeInfo) {
     updateTabs();
 });
 
@@ -52,13 +54,17 @@ var updateTabs = function() {
     chrome.tabs.query({
         active: false
     }, function(tabArray){
-        tabArray.forEach(function(tab){
+        tabArray.forEach(function(tab) {
             desaturateTabFavIcon(tab);
         });
     });
 
-    chrome.tabs.get(activeTabId, function(tab){
-        saturateTabFavIcon(tab);
+    chrome.tabs.query({
+        active: true
+    }, function(tabArray){
+        if (tabArray.length === 1) {
+            saturateTabFavIcon(tabArray[0]);
+        }
     });
 };
 
