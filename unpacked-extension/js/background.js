@@ -147,6 +147,7 @@ var getDesaturatedDataURL = function(url, callback) {
   }
 
   var image = new Image();
+  image.crossOrigin = "Anonymous";
 
   image.onload = function() {
     var canvas = document.createElement('canvas');
